@@ -9,13 +9,46 @@ jobs:
 
   build:
     runs-on: windows-2019
+    env:
+      SDL2_VERSION: "2.0.22"
     steps:
 
     - name: checkout repository
       uses: actions/checkout@v3
 
-    - name: enable Native Tools Command Prompt
+    - name: configure Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
+
+    - name: download SDL2 sources
+      uses: carlosperate/download-file-action@v1
+      with:
+        file-url: "https://github.com/libsdl-org/SDL/releases/download/release-${{ env.SDL2_VERSION }}/SDL2-${{ env.SDL2_VERSION }}.zip"
+        location: third_party
+
+    - name: extract SDL2 sources
+      run: |
+        cd third_party
+        7z x SDL2-${{ env.SDL2_VERSION }}.zip
+
+    - name: enable static build for SDL2
+      env:
+        VCX_PROJECT: third_party/SDL2-${{ env.SDL2_VERSION }}/VisualC/SDL/SDL.vcxproj
+      run: |
+        $(Get-Content ${{ env.VCX_PROJECT }}) -replace "DynamicLibrary", "StaticLibrary" |
+          Set-Content ${{ env.VCX_PROJECT }}
+
+    - name: update version and remove pdb from build script
+      env:
+        SCRIPT: third_party/build_deps.bat
+      run: |
+        (Get-Content ${{ env.SCRIPT }}) -replace "SDL2-[0-9]+\.[0-9]+\.[0-9]+", "SDL2-${{ env.SDL2_VERSION }}" |
+          Select-String -pattern "pdb" -NotMatch |
+          Set-Content ${{ env.SCRIPT }}
+
+    - name: build SDL2
+      run: |
+        cd third_party
+        ./build_deps.bat
 
     - name: build Milton
       run: ./build.bat
